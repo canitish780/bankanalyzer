@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ledgerline — Bank Statement Analyzer</title>
+<meta name="description" content="Local, in-browser bank statement analysis for CA firms and loan underwriting. No data leaves your machine." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231F6F54'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23F7F5F0' font-family='Georgia,serif'%3EL%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   Ledgerline — tokens
+   ========================================================= */
+:root {
+  --ink: #16222c;
+  --ink-soft: #2c3944;
+  --paper: #f6f4ee;
+  --paper-raised: #ffffff;
+  --line: #dcd6c7;
+  --line-soft: #e9e5da;
+  --muted: #64707a;
+  --accent: #1f6f54;
+  --accent-deep: #123f2f;
+  --accent-wash: #e7efe9;
+  --flag: #a8431e;
+  --flag-wash: #f7e8e0;
+  --amber: #92650f;
+  --amber-wash: #f5ecd7;
+
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --rail-w: 248px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #eceae2;
+    --ink-soft: #cfcabd;
+    --paper: #14181a;
+    --paper-raised: #1b2023;
+    --line: #33393c;
+    --line-soft: #262b2d;
+    --muted: #9aa2a5;
+    --accent: #4fae8a;
+    --accent-deep: #bfe6d5;
+    --accent-wash: #1b2b25;
+    --flag: #e08462;
+    --flag-wash: #2c211c;
+    --amber: #d9b467;
+    --amber-wash: #2a2418;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #eceae2;
+  --ink-soft: #cfcabd;
+  --paper: #14181a;
+  --paper-raised: #1b2023;
+  --line: #33393c;
+  --line-soft: #262b2d;
+  --muted: #9aa2a5;
+  --accent: #4fae8a;
+  --accent-deep: #bfe6d5;
+  --accent-wash: #1b2b25;
+  --flag: #e08462;
+  --flag-wash: #2c211c;
+  --amber: #d9b467;
+  --amber-wash: #2a2418;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; margin: 0; color: var(--ink); }
+p { margin: 0; }
+button { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent-wash); }
+
+/* =========================================================
+   Shell
+   ========================================================= */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  min-height: 100vh;
+}
+
+/* ---- Rail ---- */
+.rail {
+  border-right: 1px solid var(--line);
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.rail-brand { display: flex; align-items: center; gap: 12px; }
+.rail-mark {
+  width: 34px; height: 34px;
+  background: var(--accent);
+  color: var(--paper-raised);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.rail-brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.rail-name { font-family: var(--font-serif); font-weight: 600; font-size: 17px; }
+.rail-sub { font-size: 11.5px; color: var(--muted); letter-spacing: .01em; }
+
+.rail-nav { display: flex; flex-direction: column; gap: 2px; }
+.rail-link {
+  display: flex; align-items: baseline; gap: 10px;
+  background: none; border: none; text-align: left;
+  padding: 10px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.rail-link-num { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.rail-link:hover { background: var(--line-soft); }
+.rail-link.is-active { color: var(--accent-deep); border-left: 2px solid var(--accent); background: var(--accent-wash); font-weight: 500; }
+.rail-link.is-active .rail-link-num { color: var(--accent); }
+
+.rail-foot { margin-top: auto; }
+.privacy-chip {
+  font-size: 11.5px; color: var(--muted);
+  display: flex; align-items: flex-start; gap: 8px;
+  line-height: 1.4;
+  padding: 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.privacy-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+
+/* ---- Main ---- */
+.main { padding: 40px 48px 80px; max-width: 1180px; }
+.view-head { margin-bottom: 28px; max-width: 640px; }
+.view-head h1 { font-size: 27px; margin-bottom: 8px; }
+.view-head p { color: var(--muted); font-size: 14.5px; }
+.view-head-row { display: flex; justify-content: space-between; align-items: flex-end; max-width: none; gap: 20px; flex-wrap: wrap; }
+.view-head-actions { display: flex; gap: 10px; align-items: center; }
+
+/* =========================================================
+   Buttons / inputs
+   ========================================================= */
+.btn {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+.btn:hover { border-color: var(--ink-soft); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-ghost:hover { background: var(--line-soft); border-color: transparent; }
+.btn-danger { color: var(--flag); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm { padding: 6px 11px; font-size: 12.5px; }
+
+.select, .text-input {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+/* =========================================================
+   Dropzone
+   ========================================================= */
+.dropzone {
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 46px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--paper-raised);
+  transition: border-color .15s ease, background .15s ease;
+}
+.dropzone:hover, .dropzone.is-drag { border-color: var(--accent); background: var(--accent-wash); }
+.dropzone-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); }
+.dropzone-inner svg { color: var(--accent); }
+.dropzone-inner strong { color: var(--ink); font-weight: 500; }
+.dropzone-hint { font-size: 12.5px; }
+
+.empty-note {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+}
+.empty-note:empty, .empty-note[hidden] { display: none; }
+
+/* =========================================================
+   Statement list (register rows)
+   ========================================================= */
+.statement-list { margin-top: 24px; display: flex; flex-direction: column; }
+.stmt-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.stmt-row:first-child { border-top: 1px solid var(--line-soft); }
+.stmt-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stmt-name { font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stmt-meta { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+.stmt-status {
+  font-size: 11.5px; font-weight: 500;
+  padding: 4px 9px; border-radius: 99px;
+  white-space: nowrap;
+}
+.status-ok { background: var(--accent-wash); color: var(--accent-deep); }
+.status-review { background: var(--amber-wash); color: var(--amber); }
+.status-error { background: var(--flag-wash); color: var(--flag); }
+.status-pending { background: var(--line-soft); color: var(--muted); }
+.stmt-actions { display: flex; gap: 8px; }
+
+/* =========================================================
+   Cards / sections
+   ========================================================= */
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+}
+.card + .card { margin-top: 16px; }
+.card-title { font-family: var(--font-serif); font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
+.card-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; }
+
+/* =========================================================
+   Mapping interface
+   ========================================================= */
+.map-fingerprint {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--muted);
+  background: var(--line-soft); padding: 8px 11px; border-radius: var(--radius-sm);
+  margin-bottom: 18px; word-break: break-all;
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.map-field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--paper);
+}
+.map-field label {
+  display: block; font-size: 11.5px; font-weight: 600; color: var(--accent-deep);
+  margin-bottom: 7px; text-transform: none;
+}
+.map-field select {
+  width: 100%;
+}
+.map-field-sample {
+  margin-top: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.map-field.is-unmapped { border-color: var(--flag); }
+
+.preview-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 20px; }
+table.preview-table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-family: var(--font-mono); white-space: nowrap; }
+table.preview-table th, table.preview-table td { padding: 7px 12px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+table.preview-table thead th { background: var(--line-soft); font-family: var(--font-sans); font-weight: 600; font-size: 11.5px; color: var(--ink-soft); position: sticky; top: 0; }
+table.preview-table tbody tr:last-child td { border-bottom: none; }
+table.preview-table td.col-debit, table.preview-table td.col-credit, table.preview-table td.col-balance { text-align: right; }
+
+.map-actions { display: flex; gap: 10px; align-items: center; }
+.map-hint { font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+
+.bank-name-row { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+.bank-name-row .field { display: flex; flex-direction: column; gap: 6px; }
+.bank-name-row label { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+
+.validation-box { margin-top: 16px; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+.validation-box.ok { background: var(--accent-wash); color: var(--accent-deep); }
+.validation-box.warn { background: var(--amber-wash); color: var(--amber); }
+.validation-box.error { background: var(--flag-wash); color: var(--flag); }
+
+/* =========================================================
+   Dashboard
+   ========================================================= */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 18px;
+  background: var(--paper-raised);
+}
+.stat-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.stat-value { font-family: var(--font-serif); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat-value.flag { color: var(--flag); }
+.stat-sub { font-size: 11.5px; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+
+.two-col { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+@media (max-width: 980px) { .two-col, .stat-grid, .map-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 680px) { .two-col, .stat-grid, .map-grid { grid-template-columns: 1fr; } .app-shell { grid-template-columns: 1fr; } .rail { position: static; height: auto; } }
+
+.chart-card canvas { max-height: 260px; }
+
+.flag-list { display: flex; flex-direction: column; gap: 0; }
+.flag-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; align-items: center; }
+.flag-row:last-child { border-bottom: none; }
+.flag-date { font-family: var(--font-mono); color: var(--muted); }
+.flag-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flag-amt { font-family: var(--font-mono); font-weight: 600; text-align: right; }
+.flag-tag { font-size: 10.5px; padding: 2px 7px; border-radius: 99px; margin-right: 8px; }
+.tag-bounce { background: var(--flag-wash); color: var(--flag); }
+.tag-large { background: var(--amber-wash); color: var(--amber); }
+.tag-emi { background: var(--accent-wash); color: var(--accent-deep); }
+.tag-cash { background: var(--line-soft); color: var(--ink-soft); }
+
+.txn-table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+
+.month-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.month-table th, .month-table td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); text-align: right; font-family: var(--font-mono); }
+.month-table th:first-child, .month-table td:first-child { text-align: left; font-family: var(--font-sans); }
+.month-table thead th { font-family: var(--font-sans); font-weight: 600; color: var(--ink-soft); text-align: right; font-size: 11.5px; }
+.month-table thead th:first-child { text-align: left; }
+
+/* =========================================================
+   Formats library
+   ========================================================= */
+.format-card { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.format-card-main { min-width: 0; }
+.format-card-title { font-weight: 600; font-size: 14.5px; margin-bottom: 3px; }
+.format-card-fp { font-family: var(--font-mono); font-size: 11px; color: var(--muted); word-break: break-all; margin-bottom: 8px; }
+.format-card-cols { font-size: 12px; color: var(--ink-soft); }
+.format-card-cols span { display: inline-block; background: var(--line-soft); padding: 2px 8px; border-radius: 99px; margin: 2px 4px 2px 0; }
+
+/* =========================================================
+   Toasts
+   ========================================================= */
+.toast-host { position: fixed; right: 22px; bottom: 22px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.toast {
+  background: var(--ink); color: var(--paper);
+  padding: 11px 16px; border-radius: var(--radius-sm);
+  font-size: 13px; max-width: 340px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  animation: toast-in .18s ease;
+}
+.toast.toast-error { background: var(--flag); }
+@keyframes toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* =========================================================
+   Password prompt (inline, no modal library)
+   ========================================================= */
+.inline-prompt { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+
+@media print {
+  .rail, .toast-host, .view-head-actions { display: none !important; }
+  .app-shell { display: block; }
+  .main { padding: 0; max-width: none; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===== Side rail ===== -->
+  <aside class="rail">
+    <div class="rail-brand">
+      <span class="rail-mark" aria-hidden="true">L</span>
+      <div class="rail-brand-text">
+        <span class="rail-name">Ledgerline</span>
+        <span class="rail-sub">Statement Analyzer</span>
+      </div>
+    </div>
+
+    <nav class="rail-nav" aria-label="Primary">
+      <button class="rail-link is-active" data-view="upload">
+        <span class="rail-link-num">01</span> Statements
+      </button>
+      <button class="rail-link" data-view="mapping">
+        <span class="rail-link-num">02</span> Format mapping
+      </button>
+      <button class="rail-link" data-view="dashboard">
+        <span class="rail-link-num">03</span> Analysis
+      </button>
+      <button class="rail-link" data-view="formats">
+        <span class="rail-link-num">04</span> Format library
+      </button>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="privacy-chip">
+        <span class="privacy-dot" aria-hidden="true"></span>
+        Processed entirely in this browser tab. Nothing is uploaded.
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+
+    <!-- ---------- VIEW: Upload ---------- -->
+    <section class="view" id="view-upload" data-view-panel="upload">
+      <header class="view-head">
+        <h1>Statements</h1>
+        <p>Add one or more PDF statements. Each is fingerprinted against your saved formats before any figures are read from it.</p>
+      </header>
+
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload PDF bank statements">
+        <input type="file" id="fileInput" accept="application/pdf" multiple hidden />
+        <div class="dropzone-inner">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3v12m0-12 4 4m-4-4-4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <p><strong>Drop PDF statements here</strong> or click to browse</p>
+          <p class="dropzone-hint">Any bank, any year. Password-protected PDFs will prompt for a password.</p>
+        </div>
+      </div>
+
+      <div class="statement-list" id="statementList" aria-live="polite"></div>
+
+      <div class="empty-note" id="uploadEmptyNote">
+        No statements loaded yet. Once you add one, Ledgerline will try to recognise its layout automatically.
+      </div>
+    </section>
+
+    <!-- ---------- VIEW: Mapping ---------- -->
+    <section class="view" id="view-mapping" data-view-panel="mapping" hidden>
+      <header class="view-head">
+        <h1>Format mapping</h1>
+        <p>Tell Ledgerline which column is which, once per statement layout. It will remember this exact layout next time.</p>
+      </header>
+      <div id="mappingHost"></div>
+    </section>
+
+    <!-- ---------- VIEW: Dashboard ---------- -->
+    <section class="view" id="view-dashboard" data-view-panel="dashboard" hidden>
+      <header class="view-head view-head-row">
+        <div>
+          <h1>Analysis</h1>
+          <p>Figures below are computed only from statements that passed validation.</p>
+        </div>
+        <div class="view-head-actions">
+          <select id="accountSelect" class="select"></select>
+          <button class="btn btn-primary" id="downloadReportBtn">Download report</button>
+        </div>
+      </header>
+      <div id="dashboardHost"></div>
+    </section>
+
+    <!-- ---------- VIEW: Formats ---------- -->
+    <section class="view" id="view-formats" data-view-panel="formats" hidden>
+      <header class="view-head">
+        <h1>Format library</h1>
+        <p>Every confirmed column mapping, saved by its layout fingerprint so it is recognised automatically next time.</p>
+      </header>
+      <div id="formatsHost"></div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast-host" id="toastHost" aria-live="assertive"></div>
+
+<!-- pdf.js 3.11.174 — the last release with a classic global-script build (pdfjsLib).
+     v4+ ships ES-modules only, so do not bump this without also switching to type="module". -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+
+<script>
+/* =========================================================================
+ * Ledgerline — Bank Statement PDF Analyzer
+ * Single-file app script (merged for easy GitHub upload).
+ * Sections, in load/dependency order:
+ *   Utils -> PdfExtract -> TableDetect -> Fingerprint -> FormatStore
+ *   -> Parser -> Analyzer -> Charts -> Report
+ *   -> UiMapping -> UiDashboard -> UiFormats -> App (bootstraps on DOMContentLoaded)
+ * ========================================================================= */
+
+
+/* ---------- source: js/utils.js ---------- */
+/* Ledgerline — utils.js
+ * Small, dependency-free helpers used across the app.
+ */
+
+const Utils = (() => {
+
+  /** Parse an amount string like "1,23,456.00", "(2,500.00)", "1234.5 Dr" into a signed float, or null if not numeric. */
+  function parseAmount(raw) {
+    if (raw === null || raw === undefined) return null;
+    let s = String(raw).trim();
+    if (s === "" || s === "-" || /^n\.?a\.?$/i.test(s)) return null;
+
+    let negative = false;
+    if (/^\(.*\)$/.test(s)) { negative = true; s = s.slice(1, -1); }
+    if (/\bdr\b\.?$/i.test(s)) { negative = true; s = s.replace(/\bdr\b\.?$/i, ""); }
+    if (/\bcr\b\.?$/i.test(s)) { s = s.replace(/\bcr\b\.?$/i, ""); }
+    s = s.replace(/[^\d.\-]/g, "");
+    if (s === "" || s === "-" || s === ".") return null;
+    const n = parseFloat(s);
+    if (Number.isNaN(n)) return null;
+    return negative ? -Math.abs(n) : n;
+  }
+
+  /** Try a wide range of date formats used across Indian & international bank statements. Returns a Date or null. */
+  function parseDate(raw) {
+    if (!raw) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+
+    const months = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11
+    };
+
+    // DD-MMM-YYYY / DD MMM YYYY / DD-MMM-YY
+    let m = s.match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3,9})[\s\-\/](\d{2,4})$/);
+    if (m) {
+      const mon = months[m[2].slice(0, 3).toLowerCase()];
+      if (mon !== undefined) {
+        let yr = parseInt(m[3], 10);
+        if (yr < 100) yr += yr < 70 ? 2000 : 1900;
+        const d = new Date(yr, mon, parseInt(m[1], 10));
+        if (!isNaN(d)) return d;
+      }
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (day-first, standard for Indian statements)
+    m = s.match(/^(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})$/);
+    if (m) {
+      let yr = parseInt(m[3], 10);
+      if (yr < 100) yr += yr < 70 ? 2000 : 1900;
+      let day = parseInt(m[1], 10), mon = parseInt(m[2], 10) - 1;
+      if (mon > 11) { [day, mon] = [mon + 1, day - 1]; } // swap if looks like MM/DD
+      const d = new Date(yr, mon, day);
+      if (!isNaN(d)) return d;
+    }
+
+    // YYYY-MM-DD
+    m = s.match(/^(\d{4})[\.\-\/](\d{1,2})[\.\-\/](\d{1,2})$/);
+    if (m) {
+      const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      if (!isNaN(d)) return d;
+    }
+
+    // DDMMYYYY compact
+    m = s.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (m) {
+      const d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+      if (!isNaN(d)) return d;
+    }
+
+    return null;
+  }
+
+  function fmtDate(d) {
+    if (!d) return "—";
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  function fmtMonth(d) {
+    return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  }
+
+  function fmtCurrency(n, opts = {}) {
+    if (n === null || n === undefined || Number.isNaN(n)) return "—";
+    const abs = Math.abs(n);
+    const sign = n < 0 ? "-" : "";
+    const str = abs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${sign}${opts.symbol !== false ? "₹" : ""}${str}`;
+  }
+
+  function fmtInt(n) {
+    if (n === null || n === undefined) return "—";
+    return n.toLocaleString("en-IN");
+  }
+
+  function monthKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function uid(prefix = "id") {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** Simple, stable string hash (FNV-1a) → hex. Used for format fingerprints, not for security. */
+  function hashString(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function toast(msg, type = "info") {
+    const host = document.getElementById("toastHost");
+    if (!host) return;
+    const el = document.createElement("div");
+    el.className = "toast" + (type === "error" ? " toast-error" : "");
+    el.textContent = msg;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 4200);
+  }
+
+  return { parseAmount, parseDate, fmtDate, fmtMonth, fmtCurrency, fmtInt, monthKey, uid, hashString, escapeHtml, toast };
+})();
+
+
+/* ---------- source: js/pdfExtract.js ---------- */
+/* Ledgerline — pdfExtract.js
+ * Extracts positioned text items from a PDF entirely client-side using pdf.js.
+ * Nothing here ever leaves the browser tab.
+ */
+
+const PdfExtract = (() => {
+
+  /**
+   * Load a PDF (ArrayBuffer) and return { pages: [ { items: [{str,x,y,w,fontSize}], width, height } ], numPages }.
+   * If the document is password protected, `getPassword` is called (may be called more than once on wrong password)
+   * and must return a Promise<string|null>. Returning null aborts.
+   */
+  async function extract(arrayBuffer, getPassword) {
+    if (!window.pdfjsLib) {
+      throw new Error("The PDF engine didn't load (no internet connection, or a network/ad-blocker is blocking cdnjs.cloudflare.com). Reload the page and try again.");
+    }
+    const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+
+    loadingTask.onPassword = async (callback, reason) => {
+      // reason: 1 = need password, 2 = incorrect password
+      const pw = await getPassword(reason === 2);
+      if (pw === null || pw === undefined) {
+        try { loadingTask.destroy(); } catch (e) {}
+        return;
+      }
+      callback(pw);
+    };
+
+    const pdf = await loadingTask.promise;
+    const pages = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+
+      const items = content.items
+        .filter(it => it.str && it.str.trim() !== "")
+        .map(it => {
+          // transform: [scaleX, skewX, skewY, scaleY, x, y] in PDF space (origin bottom-left)
+          const t = it.transform;
+          const x = t[4];
+          const yTop = viewport.height - t[5]; // convert to top-left origin for readability
+          const fontSize = Math.hypot(t[0], t[1]) || 10;
+          return { str: it.str, x, y: yTop, w: it.width || 0, fontSize };
+        });
+
+      pages.push({ items, width: viewport.width, height: viewport.height });
+    }
+
+    return { pages, numPages: pdf.numPages };
+  }
+
+  return { extract };
+})();
+
+
+/* ---------- source: js/tableDetect.js ---------- */
+/* Ledgerline — tableDetect.js
+ * Turns positioned PDF text items into rows of aligned cells, purely from
+ * geometry (x/y positions) — no knowledge of any specific bank's layout.
+ * This is the "do not guess" boundary: it proposes a grid, the human
+ * confirms what each column means in the mapping step.
+ */
+
+const TableDetect = (() => {
+
+  const HEADER_PATTERNS = [
+    { field: "date", re: /\b(txn|transaction|value|posting|entry)?\s*date\b/i },
+    { field: "narration", re: /\b(narration|particulars|description|transaction\s*details|remarks|details|transaction\s*remarks)\b/i },
+    { field: "debit", re: /\b(debit|withdrawal|withdrawals?( amt)?|dr\.?)\b/i },
+    { field: "credit", re: /\b(credit|deposit|deposits?( amt)?|cr\.?)\b/i },
+    { field: "balance", re: /\b(balance|closing\s*bal|running\s*bal|available\s*bal)\b/i },
+    { field: "refno", re: /\b(chq\.?\s*\/?\s*ref\.?\s*no\.?|cheque\s*no\.?|ref(erence)?\.?\s*no\.?|instrument\s*no\.?)\b/i },
+    { field: "amount", re: /^\s*amount\s*$/i },
+    { field: "type", re: /\b(dr\s*\/\s*cr|cr\s*\/\s*dr|type)\b/i },
+  ];
+
+  function keywordScore(text) {
+    const hits = new Set();
+    for (const p of HEADER_PATTERNS) if (p.re.test(text)) hits.add(p.field);
+    return hits;
+  }
+
+  /** Group text items into rows by y-proximity. */
+  function groupRows(items, yTolerance = 3) {
+    const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+    const rows = [];
+    for (const it of sorted) {
+      let row = rows.find(r => Math.abs(r.y - it.y) <= yTolerance);
+      if (!row) { row = { y: it.y, tokens: [] }; rows.push(row); }
+      row.tokens.push(it);
+      row.y = (row.y * (row.tokens.length - 1) + it.y) / row.tokens.length;
+    }
+    rows.forEach(r => r.tokens.sort((a, b) => a.x - b.x));
+    rows.sort((a, b) => a.y - b.y);
+    return rows;
+  }
+
+  /** Merge adjacent tokens on a row into "words" when the gap between them is small (same word split by kerning). */
+  function mergeClose(tokens, gapPx = 2.5) {
+    const out = [];
+    for (const t of tokens) {
+      const prev = out[out.length - 1];
+      if (prev && (t.x - (prev.x + prev.w)) < gapPx) {
+        prev.str += t.str;
+        prev.w = (t.x + t.w) - prev.x;
+      } else {
+        out.push({ ...t });
+      }
+    }
+    return out;
+  }
+
+  function rowText(row) {
+    return mergeClose(row.tokens).map(t => t.str).join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  /** Cluster header-row tokens into column groups. A gap is treated as "still the same column label"
+   *  (e.g. the space inside "Value Date") only if it's close to a single word-space for this font size;
+   *  anything wider is a real column boundary. This is deliberately based on font metrics rather than
+   *  the row's own gap distribution, which is easily skewed by one unusually wide column. */
+  function clusterHeaderColumns(tokens) {
+    const merged = mergeClose(tokens, 3);
+    if (merged.length === 0) return [];
+    const avgFontSize = merged.reduce((s, t) => s + (t.fontSize || 10), 0) / merged.length;
+    const threshold = Math.max(12, avgFontSize * 2.2);
+
+    const groups = [{ tokens: [merged[0]] }];
+    for (let i = 1; i < merged.length; i++) {
+      const gap = merged[i].x - (merged[i - 1].x + merged[i - 1].w);
+      if (gap > threshold) groups.push({ tokens: [merged[i]] });
+      else groups[groups.length - 1].tokens.push(merged[i]);
+    }
+    return groups.map(g => {
+      const xStart = g.tokens[0].x;
+      const xEnd = g.tokens[g.tokens.length - 1].x + g.tokens[g.tokens.length - 1].w;
+      return { label: g.tokens.map(t => t.str).join(" ").replace(/\s+/g, " ").trim(), xStart, xEnd, xCenter: (xStart + xEnd) / 2 };
+    });
+  }
+
+  /** Score how strongly a row looks like a transaction-table header. */
+  function scoreHeaderRow(row) {
+    const text = rowText(row);
+    const hits = keywordScore(text);
+    return { hits, count: hits.size, text };
+  }
+
+  /**
+   * Build a raw table from all pages of a document.
+   * Returns { columns: [{label,xStart,xEnd,xCenter}], rows: [ [cellText,...] ], headerText, confidence }
+   */
+  function buildTable(pages) {
+    const allRows = [];
+    pages.forEach((page, pageIndex) => {
+      const rows = groupRows(page.items);
+      rows.forEach(r => allRows.push({ ...r, pageIndex }));
+    });
+
+    // Find the best header candidate: highest keyword score, must include date-ish + balance-ish or debit/credit
+    let best = null, bestIdx = -1;
+    allRows.forEach((row, idx) => {
+      const s = scoreHeaderRow(row);
+      const promising = s.hits.has("date") && (s.hits.has("balance") || s.hits.has("debit") || s.hits.has("credit") || s.hits.has("amount"));
+      if (promising && (!best || s.count > best.count)) { best = s; bestIdx = idx; }
+    });
+
+    let confidence = "low";
+    let columns, headerText, bodyStartIdx, headerRowIndices = [];
+
+    if (best && bestIdx >= 0) {
+      confidence = best.count >= 4 ? "high" : "medium";
+      const headerRow = allRows[bestIdx];
+      columns = clusterHeaderColumns(headerRow.tokens);
+      headerText = best.text;
+      bodyStartIdx = bestIdx + 1;
+
+      // find repeated header rows (e.g. printed again on every page) so we can skip them as data
+      const headerLabelsKey = columns.map(c => c.label.toLowerCase()).join("|");
+      allRows.forEach((row, idx) => {
+        if (idx <= bestIdx) return;
+        const s2 = scoreHeaderRow(row);
+        if (s2.count >= Math.max(2, best.count - 1)) headerRowIndices.push(idx);
+      });
+    } else {
+      // Fallback: no confident header found. Use the row with the most tokens in the densest y-band
+      // as an implied grid, purely from geometry, and flag low confidence for mandatory manual mapping.
+      const rowsWithCount = allRows.map((r, idx) => ({ idx, n: mergeClose(r.tokens).length }));
+      rowsWithCount.sort((a, b) => b.n - a.n);
+      const refIdx = rowsWithCount.length ? rowsWithCount[0].idx : 0;
+      const refRow = allRows[refIdx] || { tokens: [] };
+      columns = clusterHeaderColumns(refRow.tokens).map((c, i) => ({ ...c, label: `Column ${i + 1}` }));
+      headerText = "(no header row recognised)";
+      bodyStartIdx = 0;
+    }
+
+    // widen first/last column bounds to catch stray tokens, and set boundaries as midpoints between neighbours
+    if (columns.length > 1) {
+      for (let i = 0; i < columns.length; i++) {
+        const prevEnd = i === 0 ? -Infinity : (columns[i - 1].xEnd + columns[i].xStart) / 2;
+        const nextStart = i === columns.length - 1 ? Infinity : (columns[i].xEnd + columns[i + 1].xStart) / 2;
+        columns[i].assignStart = prevEnd;
+        columns[i].assignEnd = nextStart;
+      }
+    } else if (columns.length === 1) {
+      columns[0].assignStart = -Infinity; columns[0].assignEnd = Infinity;
+    }
+
+    const dataRows = [];
+    for (let idx = bodyStartIdx; idx < allRows.length; idx++) {
+      if (headerRowIndices.includes(idx)) continue;
+      const row = allRows[idx];
+      const merged = mergeClose(row.tokens);
+      if (merged.length === 0) continue;
+      const cells = columns.map(() => []);
+      merged.forEach(tok => {
+        let colIdx = columns.findIndex(c => tok.x >= c.assignStart && tok.x < c.assignEnd);
+        if (colIdx === -1) {
+          // nearest column center as last resort
+          let bestI = 0, bestD = Infinity;
+          columns.forEach((c, i) => { const d = Math.abs(tok.x - c.xCenter); if (d < bestD) { bestD = d; bestI = i; } });
+          colIdx = bestI;
+        }
+        cells[colIdx].push(tok.str);
+      });
+      dataRows.push(cells.map(c => c.join(" ").replace(/\s+/g, " ").trim()));
+    }
+
+    return {
+      columns: columns.map(c => ({ label: c.label, xCenter: c.xCenter })),
+      rows: dataRows,
+      headerText,
+      confidence
+    };
+  }
+
+  return { buildTable, groupRows, rowText, mergeClose };
+})();
+
+
+/* ---------- source: js/fingerprint.js ---------- */
+/* Ledgerline — fingerprint.js
+ * A format fingerprint identifies "this exact column layout" so that once a
+ * human has confirmed a mapping for it, future statements with the same
+ * layout are recognised automatically. It is deliberately based only on
+ * structure (column count + normalised header labels), never on amounts.
+ */
+
+const Fingerprint = (() => {
+
+  const KNOWN_BANKS = [
+    "HDFC BANK", "ICICI BANK", "STATE BANK OF INDIA", "SBI", "AXIS BANK", "KOTAK MAHINDRA BANK",
+    "PUNJAB NATIONAL BANK", "BANK OF BARODA", "CANARA BANK", "UNION BANK OF INDIA", "IDFC FIRST BANK",
+    "YES BANK", "INDUSIND BANK", "INDIAN BANK", "INDIAN OVERSEAS BANK", "CENTRAL BANK OF INDIA",
+    "BANK OF INDIA", "UCO BANK", "BANK OF MAHARASHTRA", "FEDERAL BANK", "SOUTH INDIAN BANK",
+    "RBL BANK", "AU SMALL FINANCE BANK", "KARNATAKA BANK", "CITY UNION BANK", "DCB BANK",
+    "STANDARD CHARTERED", "CITIBANK", "HSBC", "DEUTSCHE BANK", "BANDHAN BANK", "IDBI BANK",
+    "PAYTM PAYMENTS BANK", "JANA SMALL FINANCE BANK"
+  ];
+
+  function normalizeLabel(label) {
+    return String(label || "").toLowerCase().replace(/[^a-z]/g, "");
+  }
+
+  /** Structural signature: ordered, normalised column labels. Two statements with the same
+   *  columns in the same order share a fingerprint even if amounts/dates differ entirely. */
+  function computeFingerprint(columns) {
+    const sig = columns.map(c => normalizeLabel(c.label) || "col").join("|");
+    const fp = Utils.hashString(sig + "::" + columns.length);
+    return { fp, signature: sig };
+  }
+
+  function guessBankName(firstPageText) {
+    const upper = (firstPageText || "").toUpperCase();
+    for (const name of KNOWN_BANKS) {
+      if (upper.includes(name)) return name.replace(/\bSBI\b/, "State Bank of India")
+        .split(" ").map(w => w[0] + w.slice(1).toLowerCase()).join(" ");
+    }
+    return "";
+  }
+
+  return { computeFingerprint, normalizeLabel, guessBankName };
+})();
+
+
+/* ---------- source: js/formatStore.js ---------- */
+/* Ledgerline — formatStore.js
+ * Saves confirmed column mappings against their format fingerprint in
+ * localStorage, so the same layout is recognised automatically next time.
+ * Nothing here ever touches a network request.
+ */
+
+const FormatStore = (() => {
+  const KEY = "ledgerline.formats.v1";
+
+  function loadAll() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.error("FormatStore: corrupt store, resetting.", e);
+      return {};
+    }
+  }
+
+  function saveAll(obj) {
+    localStorage.setItem(KEY, JSON.stringify(obj));
+  }
+
+  function get(fp) {
+    return loadAll()[fp] || null;
+  }
+
+  function list() {
+    const all = loadAll();
+    return Object.values(all).sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  }
+
+  /** Save/overwrite a confirmed mapping. record: {fp, signature, bankName, label, columns, mapping, dateFormatHint} */
+  function save(record) {
+    const all = loadAll();
+    const existing = all[record.fp];
+    all[record.fp] = {
+      ...existing,
+      ...record,
+      createdAt: existing?.createdAt || Date.now(),
+      lastUsedAt: Date.now(),
+      useCount: (existing?.useCount || 0) + (existing ? 0 : 1),
+    };
+    saveAll(all);
+    return all[record.fp];
+  }
+
+  function markUsed(fp) {
+    const all = loadAll();
+    if (all[fp]) {
+      all[fp].lastUsedAt = Date.now();
+      all[fp].useCount = (all[fp].useCount || 0) + 1;
+      saveAll(all);
+    }
+  }
+
+  function remove(fp) {
+    const all = loadAll();
+    delete all[fp];
+    saveAll(all);
+  }
+
+  return { get, list, save, remove, markUsed };
+})();
+
+
+/* ---------- source: js/parser.js ---------- */
+/* Ledgerline — parser.js
+ * Turns (raw table + confirmed mapping) into clean transaction objects, and
+ * validates them against the statement's own running balance so silent
+ * misreads don't reach the analysis stage.
+ */
+
+const Parser = (() => {
+
+  /**
+   * mapping: { date, narration, balance, debit, credit, type }
+   * - date, narration, balance: required column indices
+   * - debit, credit: column indices; may be the SAME index if the statement
+   *   uses one "Amount" column, in which case `type` (Dr/Cr indicator column)
+   *   determines the sign.
+   */
+  function applyMapping(table, mapping) {
+    const { rows } = table;
+    const combinedAmount = mapping.debit !== null && mapping.debit === mapping.credit;
+
+    const transactions = [];
+    let skipped = 0;
+
+    rows.forEach((row, rowIndex) => {
+      const dateRaw = mapping.date != null ? row[mapping.date] : "";
+      const narrationRaw = mapping.narration != null ? row[mapping.narration] : "";
+      const balanceRaw = mapping.balance != null ? row[mapping.balance] : "";
+
+      const date = Utils.parseDate(dateRaw);
+      const balance = Utils.parseAmount(balanceRaw);
+
+      let debit = null, credit = null;
+      if (combinedAmount) {
+        const amt = Utils.parseAmount(row[mapping.debit]);
+        const typeRaw = mapping.type != null ? (row[mapping.type] || "") : "";
+        if (amt !== null) {
+          const isDebit = /\bdr\b/i.test(typeRaw) || amt < 0;
+          const isCredit = /\bcr\b/i.test(typeRaw);
+          if (isDebit && !isCredit) debit = Math.abs(amt);
+          else if (isCredit) credit = Math.abs(amt);
+          else if (amt < 0) debit = Math.abs(amt);
+          else credit = amt; // ambiguous sign, default to credit; validation will flag if wrong
+        }
+      } else {
+        debit = mapping.debit != null ? Utils.parseAmount(row[mapping.debit]) : null;
+        credit = mapping.credit != null ? Utils.parseAmount(row[mapping.credit]) : null;
+      }
+
+      const hasAnyAmount = (debit !== null && debit !== 0) || (credit !== null && credit !== 0);
+
+      if (!date || balance === null || !hasAnyAmount) {
+        skipped++;
+        return;
+      }
+
+      transactions.push({
+        rowIndex,
+        date,
+        narration: (narrationRaw || "").trim() || "(no narration captured)",
+        debit: debit || 0,
+        credit: credit || 0,
+        balance,
+        raw: row
+      });
+    });
+
+    return { transactions, skipped, totalRows: rows.length };
+  }
+
+  /** Try both statement orders (oldest-first / newest-first) and keep whichever the running
+   *  balance actually confirms. Returns validation stats + per-row match flags. */
+  function validateRunningBalance(transactions, tolerance = 0.02) {
+    if (transactions.length < 2) {
+      return { order: "unknown", matchRate: transactions.length ? 1 : 0, mismatches: [], checked: 0 };
+    }
+
+    function scoreForward(list) {
+      let matches = 0, checked = 0;
+      const mismatches = [];
+      for (let i = 1; i < list.length; i++) {
+        const expected = round2(list[i - 1].balance + list[i].credit - list[i].debit);
+        const actual = round2(list[i].balance);
+        checked++;
+        if (Math.abs(expected - actual) <= tolerance) matches++;
+        else mismatches.push({ index: i, expected, actual, date: list[i].date, narration: list[i].narration });
+      }
+      return { matches, checked, mismatches };
+    }
+
+    const asIs = scoreForward(transactions);
+    const reversed = scoreForward([...transactions].slice().reverse());
+
+    const asIsRate = asIs.checked ? asIs.matches / asIs.checked : 0;
+    const revRate = reversed.checked ? reversed.matches / reversed.checked : 0;
+
+    if (revRate > asIsRate) {
+      return { order: "newest-first", matchRate: revRate, mismatches: reversed.mismatches, checked: reversed.checked };
+    }
+    return { order: "oldest-first", matchRate: asIsRate, mismatches: asIs.mismatches, checked: asIs.checked };
+  }
+
+  /** Return transactions sorted chronologically ascending, using the detected order. */
+  function chronological(transactions, order) {
+    const list = order === "newest-first" ? [...transactions].reverse() : [...transactions];
+    return list;
+  }
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  return { applyMapping, validateRunningBalance, chronological };
+})();
+
+
+/* ---------- source: js/analyzer.js ---------- */
+/* Ledgerline — analyzer.js
+ * All figures here are derived only from validated transactions (see
+ * parser.js). Detection of cash / bounce / EMI activity is keyword and
+ * pattern based and should be read as flags for a reviewer, not as a
+ * final classification.
+ */
+
+const Analyzer = (() => {
+
+  const CASH_RE = /\bcash\b|\bcsh\b|\bcdm\b/i;
+  const BOUNCE_RE = /\b(return|returned|bounce|bounced|insufficient\s*fund|insufficient\s*balance|chq\s*rtn|cheque\s*return|ecs\s*rej|ach\s*rejec|rtn\s*chrg|return\s*charges|represent(ed|ation)?)\b/i;
+  const EMI_RE = /\bemi\b|loan\s*(repay|installment|inst\.?|emi)|installment|\bnach\b.*loan|\bach\b.*loan|loan\s*a\/?c/i;
+  const INTEREST_RE = /\binterest\b|\bint\.?\s*credit\b|\bint\s*paid\b/i;
+  const CHARGE_RE = /\b(charges?|fee|penalty|gst on|sms alert|amb charge|min bal)\b/i;
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+  function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+
+  function percentile(sortedArr, p) {
+    if (!sortedArr.length) return 0;
+    const idx = Math.min(sortedArr.length - 1, Math.floor(p * sortedArr.length));
+    return sortedArr[idx];
+  }
+
+  function buildDailyBalances(txChron) {
+    if (!txChron.length) return [];
+    const dayMap = new Map();
+    txChron.forEach(t => { dayMap.set(dateKey(t.date), t.balance); });
+    const opening = round2(txChron[0].balance - txChron[0].credit + txChron[0].debit);
+    const start = new Date(txChron[0].date.getFullYear(), txChron[0].date.getMonth(), txChron[0].date.getDate());
+    const end = new Date(txChron[txChron.length - 1].date.getFullYear(), txChron[txChron.length - 1].date.getMonth(), txChron[txChron.length - 1].date.getDate());
+    const series = [];
+    let current = opening;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = dateKey(d);
+      if (dayMap.has(key)) current = dayMap.get(key);
+      series.push({ date: new Date(d), balance: current });
+    }
+    return { series, openingBalance: opening };
+  }
+
+  function monthLabel(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+
+  function detectRecurringDebits(txChron) {
+    const groups = new Map();
+    txChron.filter(t => t.debit > 0).forEach(t => {
+      const key = Math.round(t.debit);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    });
+    const recurring = new Set();
+    for (const [, list] of groups) {
+      if (list.length < 3) continue;
+      const sorted = [...list].sort((a, b) => a.date - b.date);
+      let monthlyGaps = 0;
+      for (let i = 1; i < sorted.length; i++) {
+        const days = (sorted[i].date - sorted[i - 1].date) / 86400000;
+        if (days >= 24 && days <= 37) monthlyGaps++;
+      }
+      if (monthlyGaps >= list.length - 2 && monthlyGaps >= 2) {
+        sorted.forEach(t => recurring.add(t.rowIndex));
+      }
+    }
+    return recurring;
+  }
+
+  /**
+   * transactions: chronologically ascending, validated transactions (from Parser).
+   * options: { largeThreshold?: number }
+   */
+  function analyze(transactions, options = {}) {
+    if (!transactions.length) return null;
+
+    const totalCredits = round2(transactions.reduce((s, t) => s + t.credit, 0));
+    const totalDebits = round2(transactions.reduce((s, t) => s + t.debit, 0));
+    const netFlow = round2(totalCredits - totalDebits);
+
+    const { series: dailySeries, openingBalance } = buildDailyBalances(transactions);
+    const closingBalance = transactions[transactions.length - 1].balance;
+    const averageBalance = dailySeries.length ? round2(dailySeries.reduce((s, d) => s + d.balance, 0) / dailySeries.length) : null;
+    const minBalance = dailySeries.length ? round2(Math.min(...dailySeries.map(d => d.balance))) : null;
+    const maxBalance = dailySeries.length ? round2(Math.max(...dailySeries.map(d => d.balance))) : null;
+
+    // ---- monthly summary ----
+    const monthMap = new Map();
+    transactions.forEach(t => {
+      const key = monthLabel(t.date);
+      if (!monthMap.has(key)) monthMap.set(key, { key, date: new Date(t.date.getFullYear(), t.date.getMonth(), 1), credit: 0, debit: 0, count: 0, balances: [] });
+      const m = monthMap.get(key);
+      m.credit += t.credit; m.debit += t.debit; m.count++;
+      m.balances.push(t.balance);
+    });
+    dailySeries.forEach(d => {
+      const key = monthLabel(d.date);
+      const m = monthMap.get(key);
+      if (m) { if (!m.dailyBalances) m.dailyBalances = []; m.dailyBalances.push(d.balance); }
+    });
+    const months = [...monthMap.values()].sort((a, b) => a.date - b.date).map(m => ({
+      key: m.key,
+      label: Utils.fmtMonth(m.date),
+      totalCredit: round2(m.credit),
+      totalDebit: round2(m.debit),
+      turnover: round2(m.credit + m.debit),
+      txnCount: m.count,
+      avgBalance: m.dailyBalances && m.dailyBalances.length ? round2(m.dailyBalances.reduce((s, b) => s + b, 0) / m.dailyBalances.length) : round2(m.balances.reduce((s,b)=>s+b,0)/m.balances.length),
+      closingBalance: round2(m.balances[m.balances.length - 1]),
+    }));
+
+    const avgMonthlyTurnover = months.length ? round2(months.reduce((s, m) => s + m.turnover, 0) / months.length) : 0;
+    const avgMonthlyCredit = months.length ? round2(months.reduce((s, m) => s + m.totalCredit, 0) / months.length) : 0;
+    const avgMonthlyDebit = months.length ? round2(months.reduce((s, m) => s + m.totalDebit, 0) / months.length) : 0;
+
+    // ---- flags ----
+    const cashDeposits = transactions.filter(t => t.credit > 0 && CASH_RE.test(t.narration));
+    const cashWithdrawals = transactions.filter(t => t.debit > 0 && CASH_RE.test(t.narration));
+    const bounces = transactions.filter(t => BOUNCE_RE.test(t.narration));
+    const recurringDebitIdx = detectRecurringDebits(transactions);
+    const emiPayments = transactions.filter(t => t.debit > 0 && (EMI_RE.test(t.narration) || recurringDebitIdx.has(t.rowIndex)));
+    const interestCredits = transactions.filter(t => t.credit > 0 && INTEREST_RE.test(t.narration));
+    const bankCharges = transactions.filter(t => t.debit > 0 && CHARGE_RE.test(t.narration) && !EMI_RE.test(t.narration));
+
+    const amounts = transactions.map(t => Math.max(t.debit, t.credit)).filter(a => a > 0).sort((a, b) => a - b);
+    const suggestedThreshold = amounts.length ? Math.max(25000, Math.round(percentile(amounts, 0.95) / 1000) * 1000) : 25000;
+    const largeThreshold = options.largeThreshold || suggestedThreshold;
+    const largeTransactions = transactions.filter(t => Math.max(t.debit, t.credit) >= largeThreshold);
+
+    const emiMonthlyTotal = emiPayments.length ? round2(emiPayments.reduce((s, t) => s + t.debit, 0) / Math.max(1, months.length)) : 0;
+
+    return {
+      period: { from: transactions[0].date, to: transactions[transactions.length - 1].date },
+      openingBalance, closingBalance, averageBalance, minBalance, maxBalance,
+      totalCredits, totalDebits, netFlow,
+      txnCount: transactions.length,
+      months,
+      avgMonthlyTurnover, avgMonthlyCredit, avgMonthlyDebit,
+      cashDeposits, cashWithdrawals,
+      bounces,
+      emiPayments, emiMonthlyTotal,
+      interestCredits, bankCharges,
+      largeThreshold, suggestedThreshold, largeTransactions,
+      dailySeries,
+    };
+  }
+
+  return { analyze, buildDailyBalances };
+})();
+
+
+/* ---------- source: js/charts.js ---------- */
+/* Ledgerline — charts.js */
+
+const Charts = (() => {
+  const instances = new Map();
+
+  function themeColors() {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      accent: styles.getPropertyValue("--accent").trim() || "#1f6f54",
+      flag: styles.getPropertyValue("--flag").trim() || "#a8431e",
+      ink: styles.getPropertyValue("--ink").trim() || "#16222c",
+      muted: styles.getPropertyValue("--muted").trim() || "#64707a",
+      line: styles.getPropertyValue("--line").trim() || "#dcd6c7",
+    };
+  }
+
+  function destroy(id) {
+    if (instances.has(id)) { instances.get(id).destroy(); instances.delete(id); }
+  }
+
+  function balanceTrend(canvas, dailySeries) {
+    destroy(canvas.id);
+    const c = themeColors();
+    const chart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: dailySeries.map(d => Utils.fmtDate(d.date)),
+        datasets: [{
+          data: dailySeries.map(d => d.balance),
+          borderColor: c.accent,
+          backgroundColor: c.accent + "22",
+          fill: true,
+          tension: 0.15,
+          pointRadius: 0,
+          borderWidth: 1.6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => Utils.fmtCurrency(ctx.parsed.y) } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 7, color: c.muted, font: { size: 10.5 } }, grid: { display: false } },
+          y: { ticks: { color: c.muted, font: { size: 10.5 }, callback: (v) => Utils.fmtCurrency(v, { symbol: false }) }, grid: { color: c.line } }
+        }
+      }
+    });
+    instances.set(canvas.id, chart);
+  }
+
+  function monthlyCreditDebit(canvas, months) {
+    destroy(canvas.id);
+    const c = themeColors();
+    const chart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: "Credits", data: months.map(m => m.totalCredit), backgroundColor: c.accent, borderRadius: 2, maxBarThickness: 26 },
+          { label: "Debits", data: months.map(m => m.totalDebit), backgroundColor: c.flag, borderRadius: 2, maxBarThickness: 26 },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "top", align: "end", labels: { boxWidth: 10, color: c.ink, font: { size: 11.5 } } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${Utils.fmtCurrency(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { ticks: { color: c.muted, font: { size: 10.5 } }, grid: { display: false } },
+          y: { ticks: { color: c.muted, font: { size: 10.5 }, callback: (v) => Utils.fmtCurrency(v, { symbol: false }) }, grid: { color: c.line } }
+        }
+      }
+    });
+    instances.set(canvas.id, chart);
+  }
+
+  return { balanceTrend, monthlyCreditDebit, destroy };
+})();
+
+
+/* ---------- source: js/report.js ---------- */
+/* Ledgerline — report.js
+ * Produces a self-contained, offline-readable HTML report (the user can
+ * print it to PDF from their browser) and a CSV of the underlying
+ * transactions. No network calls, no external assets.
+ */
+
+const Report = (() => {
+
+  function triggerDownload(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function flagRowsHtml(list, tagClass, tagLabel) {
+    if (!list.length) return `<p class="r-empty">None detected.</p>`;
+    return `<table class="r-table"><thead><tr><th>Date</th><th>Narration</th><th class="r-num">Amount</th></tr></thead><tbody>` +
+      list.slice(0, 60).map(t => `<tr><td>${Utils.fmtDate(t.date)}</td><td>${Utils.escapeHtml(t.narration)} <span class="r-tag ${tagClass}">${tagLabel}</span></td><td class="r-num">${Utils.fmtCurrency(t.debit || t.credit)}</td></tr>`).join("") +
+      `</tbody></table>` + (list.length > 60 ? `<p class="r-more">+ ${list.length - 60} more not shown</p>` : "");
+  }
+
+  function buildHtml(accountLabel, bankName, analysis, meta = {}) {
+    const a = analysis;
+    const monthsRows = a.months.map(m => `
+      <tr>
+        <td>${m.label}</td>
+        <td class="r-num">${Utils.fmtCurrency(m.totalCredit)}</td>
+        <td class="r-num">${Utils.fmtCurrency(m.totalDebit)}</td>
+        <td class="r-num">${Utils.fmtCurrency(m.turnover)}</td>
+        <td class="r-num">${m.txnCount}</td>
+        <td class="r-num">${Utils.fmtCurrency(m.avgBalance)}</td>
+        <td class="r-num">${Utils.fmtCurrency(m.closingBalance)}</td>
+      </tr>`).join("");
+
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>${Utils.escapeHtml(accountLabel)} — Bank Statement Analysis</title>
+<style>
+  :root{--ink:#16222c;--muted:#64707a;--line:#dcd6c7;--accent:#1f6f54;--flag:#a8431e;--amber:#92650f;}
+  *{box-sizing:border-box;} body{font-family:Georgia,'Times New Roman',serif;color:var(--ink);max-width:900px;margin:40px auto;padding:0 24px;line-height:1.5;}
+  h1{font-size:23px;margin:0 0 2px;} h2{font-size:16px;margin:34px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px;}
+  .r-meta{color:var(--muted);font-size:12.5px;font-family:Arial,sans-serif;margin-bottom:22px;}
+  .r-print{position:fixed;top:16px;right:16px;font-family:Arial,sans-serif;font-size:12px;padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;}
+  .r-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px;}
+  .r-stat{border:1px solid var(--line);border-radius:5px;padding:12px;font-family:Arial,sans-serif;}
+  .r-stat-label{font-size:10.5px;color:var(--muted);margin-bottom:5px;}
+  .r-stat-value{font-family:Georgia,serif;font-size:18px;font-weight:600;}
+  table.r-table, table.r-month{width:100%;border-collapse:collapse;font-size:12.5px;font-family:Arial,sans-serif;}
+  .r-table th,.r-table td,.r-month th,.r-month td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;}
+  .r-num{text-align:right !important; font-variant-numeric:tabular-nums;}
+  .r-table thead th, .r-month thead th{background:#f3f1ea;font-weight:600;}
+  .r-tag{font-size:9.5px;padding:1px 6px;border-radius:8px;margin-left:6px;}
+  .r-empty{color:var(--muted);font-size:12.5px;font-family:Arial,sans-serif;}
+  .r-more{color:var(--muted);font-size:11.5px;font-family:Arial,sans-serif;}
+  .r-note{font-size:11px;color:var(--muted);font-family:Arial,sans-serif;margin-top:6px;}
+  .r-foot{margin-top:40px;font-size:10.5px;color:var(--muted);font-family:Arial,sans-serif;border-top:1px solid var(--line);padding-top:10px;}
+  @media print{.r-print{display:none;}}
+</style></head>
+<body>
+<button class="r-print" onclick="window.print()">Print / Save as PDF</button>
+<h1>${Utils.escapeHtml(accountLabel)}</h1>
+<div class="r-meta">${bankName ? Utils.escapeHtml(bankName) + " · " : ""}Statement period ${Utils.fmtDate(a.period.from)} – ${Utils.fmtDate(a.period.to)} · Generated ${new Date().toLocaleString("en-IN")} · Ledgerline (processed locally, no data uploaded)</div>
+
+<h2>Summary</h2>
+<div class="r-stats">
+  <div class="r-stat"><div class="r-stat-label">Total credits</div><div class="r-stat-value">${Utils.fmtCurrency(a.totalCredits)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Total debits</div><div class="r-stat-value">${Utils.fmtCurrency(a.totalDebits)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Net cash flow</div><div class="r-stat-value">${Utils.fmtCurrency(a.netFlow)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Average balance</div><div class="r-stat-value">${Utils.fmtCurrency(a.averageBalance)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Opening balance</div><div class="r-stat-value">${Utils.fmtCurrency(a.openingBalance)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Closing balance</div><div class="r-stat-value">${Utils.fmtCurrency(a.closingBalance)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Avg monthly turnover</div><div class="r-stat-value">${Utils.fmtCurrency(a.avgMonthlyTurnover)}</div></div>
+  <div class="r-stat"><div class="r-stat-label">Transactions analysed</div><div class="r-stat-value">${Utils.fmtInt(a.txnCount)}</div></div>
+</div>
+
+<h2>Monthly turnover &amp; balance</h2>
+<table class="r-month"><thead><tr><th>Month</th><th class="r-num">Credits</th><th class="r-num">Debits</th><th class="r-num">Turnover</th><th class="r-num">Txns</th><th class="r-num">Avg balance</th><th class="r-num">Closing balance</th></tr></thead>
+<tbody>${monthsRows}</tbody></table>
+
+<h2>Cheque / ECS / EMI bounces (${a.bounces.length})</h2>
+${flagRowsHtml(a.bounces, "", "bounce")}
+
+<h2>Loan / EMI debits (${a.emiPayments.length}) — est. ${Utils.fmtCurrency(a.emiMonthlyTotal)}/month</h2>
+${flagRowsHtml(a.emiPayments, "", "emi")}
+<p class="r-note">Identified by narration keywords and by recurring same-amount monthly debits. Verify against loan schedule before relying on this for underwriting.</p>
+
+<h2>Cash transactions</h2>
+<p class="r-note">Cash deposits: ${a.cashDeposits.length} totalling ${Utils.fmtCurrency(a.cashDeposits.reduce((s,t)=>s+t.credit,0))}. Cash withdrawals: ${a.cashWithdrawals.length} totalling ${Utils.fmtCurrency(a.cashWithdrawals.reduce((s,t)=>s+t.debit,0))}.</p>
+
+<h2>Large transactions (≥ ${Utils.fmtCurrency(a.largeThreshold)}) — ${a.largeTransactions.length}</h2>
+${flagRowsHtml(a.largeTransactions, "", "large")}
+
+<div class="r-foot">This report was generated automatically from the bank statement's own printed figures. Every figure traces to a validated running-balance check; rows that failed validation were excluded — see the Analysis screen for the validation summary before relying on this for a credit or audit decision.</div>
+</body></html>`;
+  }
+
+  function csvOf(transactions) {
+    const header = ["Date", "Narration", "Debit", "Credit", "Balance"];
+    const lines = [header.join(",")];
+    transactions.forEach(t => {
+      const row = [
+        Utils.fmtDate(t.date),
+        `"${(t.narration || "").replace(/"/g, '""')}"`,
+        t.debit ? t.debit.toFixed(2) : "",
+        t.credit ? t.credit.toFixed(2) : "",
+        t.balance.toFixed(2)
+      ];
+      lines.push(row.join(","));
+    });
+    return lines.join("\n");
+  }
+
+  function downloadReport(accountLabel, bankName, analysis) {
+    const html = buildHtml(accountLabel, bankName, analysis);
+    triggerDownload(`${accountLabel.replace(/[^\w\-]+/g, "_")}_analysis_report.html`, html, "text/html");
+  }
+
+  function downloadCsv(accountLabel, transactions) {
+    triggerDownload(`${accountLabel.replace(/[^\w\-]+/g, "_")}_transactions.csv`, csvOf(transactions), "text/csv");
+  }
+
+  return { downloadReport, downloadCsv };
+})();
+
+
+/* ---------- source: js/ui.mapping.js ---------- */
+/* Ledgerline — ui.mapping.js */
+
+const UiMapping = (() => {
+
+  const FIELD_DEFS = [
+    { key: "date", label: "Date", required: true },
+    { key: "narration", label: "Narration", required: true },
+    { key: "debit", label: "Debit", required: true },
+    { key: "credit", label: "Credit", required: true },
+    { key: "balance", label: "Balance", required: true },
+  ];
+
+  function guessMapping(table) {
+    const guess = {};
+    table.columns.forEach((c, i) => {
+      const lbl = c.label.toLowerCase();
+      if (!guess.date && /date/.test(lbl) && !/value/.test(lbl)) guess.date = i;
+      if (!guess.date && /date/.test(lbl)) guess.date = i;
+      if (!guess.narration && /(narration|particular|description|remarks|details)/.test(lbl)) guess.narration = i;
+      if (!guess.debit && /(debit|withdrawal|\bdr\b)/.test(lbl)) guess.debit = i;
+      if (!guess.credit && /(credit|deposit|\bcr\b)/.test(lbl)) guess.credit = i;
+      if (!guess.balance && /balance/.test(lbl)) guess.balance = i;
+      if (!guess.type && /(dr\s*\/\s*cr|cr\s*\/\s*dr|^type$)/.test(lbl)) guess.type = i;
+      if (!guess.debit && !guess.credit && /^amount$/.test(lbl)) { guess.debit = i; guess.credit = i; }
+    });
+    return guess;
+  }
+
+  function columnOptions(table, selected) {
+    let html = `<option value="">— none / not present —</option>`;
+    table.columns.forEach((c, i) => {
+      html += `<option value="${i}" ${selected === i ? "selected" : ""}>${Utils.escapeHtml(c.label || `Column ${i + 1}`)}</option>`;
+    });
+    return html;
+  }
+
+  function sampleForColumn(table, colIdx, n = 3) {
+    if (colIdx === "" || colIdx === undefined || colIdx === null) return "";
+    return table.rows.slice(0, 8).map(r => r[colIdx]).filter(Boolean).slice(0, n).join(" · ");
+  }
+
+  function previewTableHtml(table, mapping) {
+    const rows = table.rows.slice(0, 12);
+    const colClass = (i) => {
+      if (mapping.debit === i) return "col-debit";
+      if (mapping.credit === i) return "col-credit";
+      if (mapping.balance === i) return "col-balance";
+      return "";
+    };
+    return `<div class="preview-table-wrap"><table class="preview-table">
+      <thead><tr>${table.columns.map((c, i) => `<th>${Utils.escapeHtml(c.label || `Col ${i+1}`)}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(r => `<tr>${r.map((cell, i) => `<td class="${colClass(i)}">${Utils.escapeHtml(cell || "")}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
+  }
+
+  function validationHtml(preview) {
+    if (!preview) return "";
+    const { parsedCount, skipped, validation } = preview;
+    if (parsedCount === 0) {
+      return `<div class="validation-box error">No rows could be read with this mapping yet. Check that Date and Balance are pointing at the right columns.</div>`;
+    }
+    const pct = Math.round(validation.matchRate * 100);
+    if (pct >= 95) {
+      return `<div class="validation-box ok"><strong>${pct}%</strong>&nbsp;of running-balance checks match (${validation.checked} checked, order: ${validation.order}). ${parsedCount} rows parsed${skipped ? `, ${skipped} rows skipped as non-transaction lines` : ""}.</div>`;
+    }
+    if (pct >= 75) {
+      return `<div class="validation-box warn"><strong>${pct}%</strong> of running-balance checks match — some rows may be misread. Review the mapping before saving. (${validation.checked} checked, order: ${validation.order})</div>`;
+    }
+    return `<div class="validation-box error"><strong>${pct}%</strong> of running-balance checks match — this mapping looks wrong for this statement. ${parsedCount} rows parsed, ${skipped} skipped.</div>`;
+  }
+
+  /**
+   * Renders the mapping UI for a statement into `host`.
+   * onSave(mapping, bankName, accountLabel) is called when the user confirms.
+   */
+  function render(host, statement, onSave, onPreview) {
+    const table = statement.table;
+    const initialMapping = statement.mapping || guessMapping(table);
+    const bankName = statement.bankName || Fingerprint.guessBankName(statement.firstPageText) || "";
+    const accountLabel = statement.accountLabel || (bankName ? `${bankName}` : statement.name.replace(/\.pdf$/i, ""));
+
+    host.innerHTML = `
+      <div class="card">
+        <div class="card-title">${statement.matchedFormat ? "Confirm recognised format" : "New format — map the columns"}</div>
+        <div class="card-sub">${statement.matchedFormat
+          ? `This layout matches a format you've mapped before (${statement.matchedFormat.label || statement.matchedFormat.bankName || "saved format"}). Review and confirm, or adjust below.`
+          : `Ledgerline hasn't seen this exact column layout before. Map each field once and it will be recognised automatically next time.`}</div>
+
+        <div class="map-fingerprint">Fingerprint ${statement.fp} · ${table.columns.length} columns detected · header confidence: ${table.confidence}</div>
+
+        <div class="bank-name-row">
+          <div class="field">
+            <label for="mapBankName">Bank name</label>
+            <input class="text-input" id="mapBankName" type="text" value="${Utils.escapeHtml(bankName)}" placeholder="e.g. HDFC Bank" style="width:220px" />
+          </div>
+          <div class="field">
+            <label for="mapAccountLabel">Account label</label>
+            <input class="text-input" id="mapAccountLabel" type="text" value="${Utils.escapeHtml(accountLabel)}" placeholder="e.g. HDFC — a/c 1234" style="width:260px" />
+          </div>
+          <div class="field">
+            <label for="mapFormatLabel">Format name (optional)</label>
+            <input class="text-input" id="mapFormatLabel" type="text" value="${Utils.escapeHtml(statement.matchedFormat?.label || "")}" placeholder="e.g. HDFC savings, 2023 layout" style="width:240px" />
+          </div>
+        </div>
+
+        <div class="map-grid" id="mapGrid">
+          ${FIELD_DEFS.map(f => `
+            <div class="map-field" data-field="${f.key}">
+              <label>${f.label}${f.required ? "" : " (optional)"}</label>
+              <select class="select map-select" data-field="${f.key}">${columnOptions(table, initialMapping[f.key])}</select>
+              <div class="map-field-sample" data-sample="${f.key}">${Utils.escapeHtml(sampleForColumn(table, initialMapping[f.key]))}</div>
+            </div>`).join("")}
+        </div>
+        <div class="map-field" style="max-width:280px;margin-bottom:20px;">
+          <label>Dr / Cr indicator (only if Debit &amp; Credit above point at the same "Amount" column)</label>
+          <select class="select map-select" data-field="type">${columnOptions(table, initialMapping.type)}</select>
+        </div>
+
+        <div class="card-title" style="font-size:13.5px;margin-bottom:8px;">Preview — first rows as detected</div>
+        <div id="mapPreviewTable">${previewTableHtml(table, initialMapping)}</div>
+
+        <div id="mapValidation"></div>
+
+        <div class="map-actions" style="margin-top:18px;">
+          <button class="btn btn-primary" id="mapConfirmBtn">Save mapping &amp; analyse</button>
+          <button class="btn btn-ghost" id="mapCancelBtn">Cancel</button>
+          <span class="map-hint">This mapping is saved locally in your browser and reused automatically for statements with the same layout.</span>
+        </div>
+      </div>
+    `;
+
+    function currentMapping() {
+      const m = {};
+      host.querySelectorAll(".map-select").forEach(sel => {
+        const v = sel.value;
+        m[sel.dataset.field] = v === "" ? null : parseInt(v, 10);
+      });
+      return m;
+    }
+
+    function refresh() {
+      const mapping = currentMapping();
+      host.querySelectorAll(".map-field").forEach(fieldEl => {
+        const key = fieldEl.dataset.field;
+        if (!key) return;
+        const sampleEl = fieldEl.querySelector(".map-field-sample");
+        if (sampleEl) sampleEl.textContent = sampleForColumn(table, mapping[key]);
+        const def = FIELD_DEFS.find(f => f.key === key);
+        if (def) fieldEl.classList.toggle("is-unmapped", mapping[key] == null);
+      });
+      document.getElementById("mapPreviewTable").innerHTML = previewTableHtml(table, mapping);
+      const preview = onPreview(mapping);
+      document.getElementById("mapValidation").innerHTML = validationHtml(preview);
+
+      const confirmBtn = document.getElementById("mapConfirmBtn");
+      confirmBtn.disabled = !mapping.date || !mapping.narration || !mapping.balance || (mapping.debit == null && mapping.credit == null);
+    }
+
+    host.querySelectorAll(".map-select").forEach(sel => sel.addEventListener("change", refresh));
+    refresh();
+
+    document.getElementById("mapConfirmBtn").addEventListener("click", () => {
+      const mapping = currentMapping();
+      const bank = document.getElementById("mapBankName").value.trim();
+      const acct = document.getElementById("mapAccountLabel").value.trim() || bank || statement.name;
+      const fmtLabel = document.getElementById("mapFormatLabel").value.trim();
+      onSave(mapping, bank, acct, fmtLabel);
+    });
+    document.getElementById("mapCancelBtn").addEventListener("click", () => {
+      App.showView("upload");
+    });
+  }
+
+  return { render, guessMapping };
+})();
+
+
+/* ---------- source: js/ui.dashboard.js ---------- */
+/* Ledgerline — ui.dashboard.js */
+
+const UiDashboard = (() => {
+
+  function statCard(label, value, sub, flagClass) {
+    return `<div class="stat-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value${flagClass ? " " + flagClass : ""}">${value}</div>
+      ${sub ? `<div class="stat-sub">${sub}</div>` : ""}
+    </div>`;
+  }
+
+  function flagRow(t, tagClass, tagLabel) {
+    return `<div class="flag-row">
+      <div class="flag-date">${Utils.fmtDate(t.date)}</div>
+      <div class="flag-desc" title="${Utils.escapeHtml(t.narration)}"><span class="flag-tag ${tagClass}">${tagLabel}</span>${Utils.escapeHtml(t.narration)}</div>
+      <div class="flag-amt">${Utils.fmtCurrency(t.debit || t.credit)}</div>
+    </div>`;
+  }
+
+  function monthTableRows(months) {
+    return months.map(m => `<tr>
+      <td>${m.label}</td>
+      <td>${Utils.fmtCurrency(m.totalCredit)}</td>
+      <td>${Utils.fmtCurrency(m.totalDebit)}</td>
+      <td>${Utils.fmtCurrency(m.turnover)}</td>
+      <td>${m.txnCount}</td>
+      <td>${Utils.fmtCurrency(m.avgBalance)}</td>
+      <td>${Utils.fmtCurrency(m.closingBalance)}</td>
+    </tr>`).join("");
+  }
+
+  function render(host, accountLabel, bankName, analysis, statementsForAccount) {
+    if (!analysis) {
+      host.innerHTML = `<div class="empty-note">No validated transactions yet for this account. Add and map a statement first.</div>`;
+      return;
+    }
+    const a = analysis;
+
+    host.innerHTML = `
+      <div class="stat-grid">
+        ${statCard("Total credits", Utils.fmtCurrency(a.totalCredits), `${a.txnCount} txns · ${Utils.fmtDate(a.period.from)} – ${Utils.fmtDate(a.period.to)}`)}
+        ${statCard("Total debits", Utils.fmtCurrency(a.totalDebits))}
+        ${statCard("Net cash flow", Utils.fmtCurrency(a.netFlow), null, a.netFlow < 0 ? "flag" : "")}
+        ${statCard("Average balance", Utils.fmtCurrency(a.averageBalance), `Min ${Utils.fmtCurrency(a.minBalance)} · Max ${Utils.fmtCurrency(a.maxBalance)}`)}
+        ${statCard("Avg monthly turnover", Utils.fmtCurrency(a.avgMonthlyTurnover), `Credit ${Utils.fmtCurrency(a.avgMonthlyCredit)} / Debit ${Utils.fmtCurrency(a.avgMonthlyDebit)}`)}
+        ${statCard("Cheque / EMI bounces", Utils.fmtInt(a.bounces.length), null, a.bounces.length ? "flag" : "")}
+        ${statCard("EMI / loan debits", Utils.fmtCurrency(a.emiMonthlyTotal) + "/mo", `${a.emiPayments.length} debits identified`)}
+        ${statCard("Large transactions", Utils.fmtInt(a.largeTransactions.length), `≥ ${Utils.fmtCurrency(a.largeThreshold)}`)}
+      </div>
+
+      <div class="two-col">
+        <div class="card chart-card">
+          <div class="card-title">Balance over statement period</div>
+          <div class="card-sub">Daily closing balance, carried forward between transactions</div>
+          <canvas id="chartBalance"></canvas>
+        </div>
+        <div class="card chart-card">
+          <div class="card-title">Monthly credits vs. debits</div>
+          <div class="card-sub">${a.months.length} month${a.months.length===1?"":"s"} covered</div>
+          <canvas id="chartMonthly"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Monthly turnover &amp; balance</div>
+        <div class="card-sub">Average balance uses daily closing balances, not just transaction-day snapshots</div>
+        <div class="txn-table-wrap" style="max-height:280px;">
+          <table class="month-table">
+            <thead><tr><th>Month</th><th>Credits</th><th>Debits</th><th>Turnover</th><th>Txns</th><th>Avg balance</th><th>Closing balance</th></tr></thead>
+            <tbody>${monthTableRows(a.months)}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Cheque / ECS / EMI bounces (${a.bounces.length})</div>
+          <div class="card-sub">Flagged from return/insufficient-funds narration</div>
+          <div class="flag-list">${a.bounces.length ? a.bounces.map(t => flagRow(t, "tag-bounce", "bounce")).join("") : `<p class="stat-sub">None detected.</p>`}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Large transactions (${a.largeTransactions.length})</div>
+          <div class="card-sub">Threshold
+            <input type="number" id="largeThresholdInput" value="${a.largeThreshold}" step="1000" class="text-input" style="width:110px;margin-left:6px;padding:4px 8px;font-size:12px;" />
+          </div>
+          <div class="flag-list">${a.largeTransactions.length ? a.largeTransactions.slice(0, 30).map(t => flagRow(t, "tag-large", t.debit ? "debit" : "credit")).join("") : `<p class="stat-sub">None above threshold.</p>`}</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Loan / EMI debits (${a.emiPayments.length})</div>
+          <div class="card-sub">Est. ${Utils.fmtCurrency(a.emiMonthlyTotal)} per month — keyword + recurrence based, verify before underwriting</div>
+          <div class="flag-list">${a.emiPayments.length ? a.emiPayments.slice(0, 30).map(t => flagRow(t, "tag-emi", "EMI")).join("") : `<p class="stat-sub">None detected.</p>`}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Cash activity</div>
+          <div class="card-sub">Cash deposits and withdrawals identified by narration</div>
+          <div class="flag-list">
+            ${a.cashDeposits.slice(0, 15).map(t => flagRow(t, "tag-cash", "cash in")).join("")}
+            ${a.cashWithdrawals.slice(0, 15).map(t => flagRow(t, "tag-cash", "cash out")).join("")}
+            ${(a.cashDeposits.length + a.cashWithdrawals.length) === 0 ? `<p class="stat-sub">None detected.</p>` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Statements included</div>
+        <div class="card-sub">${statementsForAccount.length} statement${statementsForAccount.length===1?"":"s"} combined for this account</div>
+        <div class="flag-list">
+          ${statementsForAccount.map(s => `<div class="flag-row"><div class="flag-date">${Utils.escapeHtml(s.name)}</div><div class="flag-desc">${s.transactions ? s.transactions.length : 0} validated transactions</div><div class="flag-amt">${s.validation ? Math.round(s.validation.matchRate*100)+"% verified" : ""}</div></div>`).join("")}
+        </div>
+      </div>
+    `;
+
+    Charts.balanceTrend(document.getElementById("chartBalance"), a.dailySeries);
+    Charts.monthlyCreditDebit(document.getElementById("chartMonthly"), a.months);
+
+    document.getElementById("largeThresholdInput").addEventListener("change", (e) => {
+      const v = parseFloat(e.target.value);
+      if (!Number.isNaN(v) && v > 0) App.setLargeThresholdAndRerender(v);
+    });
+  }
+
+  return { render };
+})();
+
+
+/* ---------- source: js/ui.formats.js ---------- */
+/* Ledgerline — ui.formats.js */
+
+const UiFormats = (() => {
+
+  const FIELD_ORDER = ["date", "narration", "debit", "credit", "balance", "type"];
+
+  function fieldChips(record) {
+    return FIELD_ORDER.filter(f => record.mapping[f] !== null && record.mapping[f] !== undefined)
+      .map(f => {
+        const col = record.columns[record.mapping[f]];
+        return `<span>${f} → ${Utils.escapeHtml(col ? col.label : "?")}</span>`;
+      }).join("");
+  }
+
+  function render(host) {
+    const formats = FormatStore.list();
+    if (!formats.length) {
+      host.innerHTML = `<div class="empty-note">No formats saved yet. Map a statement and it will appear here, ready to be recognised automatically next time.</div>`;
+      return;
+    }
+
+    host.innerHTML = formats.map(f => `
+      <div class="card format-card" data-fp="${f.fp}">
+        <div class="format-card-main">
+          <div class="format-card-title">${Utils.escapeHtml(f.label || f.bankName || "Unnamed format")}${f.bankName && f.label ? ` <span style="color:var(--muted);font-weight:400;">— ${Utils.escapeHtml(f.bankName)}</span>` : ""}</div>
+          <div class="format-card-fp">fp ${f.fp} · used ${f.useCount || 1} time${(f.useCount||1)===1?"":"s"} · last used ${new Date(f.lastUsedAt).toLocaleDateString("en-IN")}</div>
+          <div class="format-card-cols">${fieldChips(f)}</div>
+        </div>
+        <div class="stmt-actions">
+          <button class="btn btn-sm btn-ghost" data-action="rename" data-fp="${f.fp}">Rename</button>
+          <button class="btn btn-sm btn-danger btn-ghost" data-action="delete" data-fp="${f.fp}">Delete</button>
+        </div>
+      </div>
+    `).join("");
+
+    host.querySelectorAll("[data-action='rename']").forEach(btn => btn.addEventListener("click", () => {
+      const fp = btn.dataset.fp;
+      const rec = FormatStore.get(fp);
+      const name = prompt("Format name", rec.label || rec.bankName || "");
+      if (name !== null) {
+        FormatStore.save({ ...rec, label: name.trim() });
+        render(host);
+        Utils.toast("Format renamed.");
+      }
+    }));
+
+    host.querySelectorAll("[data-action='delete']").forEach(btn => btn.addEventListener("click", () => {
+      const fp = btn.dataset.fp;
+      if (confirm("Delete this saved format? Statements with this layout will need to be mapped again.")) {
+        FormatStore.remove(fp);
+        render(host);
+        Utils.toast("Format deleted.");
+      }
+    }));
+  }
+
+  return { render };
+})();
+
+
+/* ---------- source: js/app.js ---------- */
+/* Ledgerline — app.js
+ * Orchestrates the whole flow: upload → recognise/map format → validate →
+ * combine into accounts → analyse → report. Everything runs in this tab;
+ * PDF bytes are never sent anywhere.
+ */
+
+const App = (() => {
+
+  const AUTO_ACCEPT_THRESHOLD = 0.9; // running-balance match rate required to skip the mapping screen
+
+  const state = {
+    statements: [],       // see shape below
+    currentView: "upload",
+    currentMappingId: null,
+    accounts: new Map(),  // accountLabel -> { bankName, transactions:[], statements:[], largeThreshold }
+    selectedAccount: null,
+  };
+
+  // ---------------------------------------------------------------- views
+
+  function showView(view) {
+    state.currentView = view;
+    document.querySelectorAll(".rail-link").forEach(b => b.classList.toggle("is-active", b.dataset.view === view));
+    document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.viewPanel !== view);
+    if (view === "mapping") renderMappingView();
+    if (view === "dashboard") renderDashboardView();
+    if (view === "formats") UiFormats.render(document.getElementById("formatsHost"));
+  }
+
+  function initNav() {
+    document.querySelectorAll(".rail-link").forEach(btn => {
+      btn.addEventListener("click", () => showView(btn.dataset.view));
+    });
+  }
+
+  // ---------------------------------------------------------------- upload
+
+  function initUpload() {
+    const dz = document.getElementById("dropzone");
+    const input = document.getElementById("fileInput");
+    dz.addEventListener("click", () => input.click());
+    dz.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") input.click(); });
+    input.addEventListener("change", () => { handleFiles(input.files); input.value = ""; });
+
+    ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("is-drag"); }));
+    ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("is-drag"); }));
+    dz.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+  }
+
+  function handleFiles(fileList) {
+    const files = [...fileList].filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+    if (!files.length) { Utils.toast("Only PDF files are supported.", "error"); return; }
+    files.forEach(addStatement);
+  }
+
+  function addStatement(file) {
+    const stmt = {
+      id: Utils.uid("stmt"),
+      file, name: file.name, size: file.size,
+      status: "pending", // pending | needs_mapping | mapped | error
+      error: null,
+      table: null, fp: null, signature: null,
+      firstPageText: "",
+      bankName: "", accountLabel: "",
+      matchedFormat: null,
+      mapping: null,
+      transactions: [], validation: null,
+    };
+    state.statements.push(stmt);
+    renderStatementList();
+    processStatement(stmt.id);
+  }
+
+  async function processStatement(id) {
+    const stmt = state.statements.find(s => s.id === id);
+    if (!stmt) return;
+    try {
+      const buf = await stmt.file.arrayBuffer();
+      const getPassword = async (isRetry) => {
+        const msg = isRetry ? `Incorrect password. Enter the password for "${stmt.name}":` : `"${stmt.name}" is password protected. Enter the password:`;
+        return window.prompt(msg);
+      };
+      const { pages } = await PdfExtract.extract(buf, getPassword);
+      if (!pages.length) throw new Error("No readable pages found in this PDF.");
+
+      stmt.firstPageText = pages[0].items.map(it => it.str).join(" ").slice(0, 4000);
+      const table = TableDetect.buildTable(pages);
+      if (!table.rows.length) throw new Error("Could not find any table rows in this PDF — it may be a scanned image without selectable text.");
+
+      stmt.table = table;
+      const { fp, signature } = Fingerprint.computeFingerprint(table.columns);
+      stmt.fp = fp; stmt.signature = signature;
+
+      const saved = FormatStore.get(fp);
+      if (saved) {
+        stmt.matchedFormat = saved;
+        stmt.mapping = saved.mapping;
+        stmt.bankName = saved.bankName || Fingerprint.guessBankName(stmt.firstPageText);
+        stmt.accountLabel = saved.label || stmt.bankName || stmt.name.replace(/\.pdf$/i, "");
+        const parsed = Parser.applyMapping(table, saved.mapping);
+        const validation = Parser.validateRunningBalance(parsed.transactions);
+        if (parsed.transactions.length > 0 && validation.matchRate >= AUTO_ACCEPT_THRESHOLD) {
+          stmt.transactions = Parser.chronological(parsed.transactions, validation.order);
+          stmt.validation = validation;
+          stmt.skipped = parsed.skipped;
+          stmt.status = "mapped";
+          FormatStore.markUsed(fp);
+          rebuildAccounts();
+          Utils.toast(`${stmt.name}: recognised format, ${stmt.transactions.length} transactions verified.`);
+        } else {
+          stmt.status = "needs_mapping";
+          stmt.pendingValidation = validation;
+          Utils.toast(`${stmt.name}: layout matched a saved format but the running balance doesn't confirm it — please review.`, "error");
+        }
+      } else {
+        stmt.bankName = Fingerprint.guessBankName(stmt.firstPageText);
+        stmt.accountLabel = stmt.bankName || stmt.name.replace(/\.pdf$/i, "");
+        stmt.status = "needs_mapping";
+      }
+    } catch (err) {
+      console.error(err);
+      stmt.status = "error";
+      stmt.error = err.message || "Could not read this PDF.";
+    }
+    renderStatementList();
+    if (state.currentView === "mapping" && state.currentMappingId === stmt.id) renderMappingView();
+  }
+
+  function statusBadge(stmt) {
+    switch (stmt.status) {
+      case "pending": return `<span class="stmt-status status-pending">Reading…</span>`;
+      case "needs_mapping": return `<span class="stmt-status status-review">Needs mapping</span>`;
+      case "mapped": {
+        const pct = Math.round((stmt.validation?.matchRate || 0) * 100);
+        return `<span class="stmt-status status-ok">Verified ${pct}%</span>`;
+      }
+      case "error": return `<span class="stmt-status status-error">Error</span>`;
+      default: return "";
+    }
+  }
+
+  function renderStatementList() {
+    const host = document.getElementById("statementList");
+    const emptyNote = document.getElementById("uploadEmptyNote");
+    emptyNote.hidden = state.statements.length > 0;
+
+    host.innerHTML = state.statements.map(s => `
+      <div class="stmt-row" data-id="${s.id}">
+        <div class="stmt-main">
+          <div class="stmt-name">${Utils.escapeHtml(s.name)}</div>
+          <div class="stmt-meta">${(s.size / 1024).toFixed(0)} KB${s.accountLabel ? " · " + Utils.escapeHtml(s.accountLabel) : ""}${s.error ? " · " + Utils.escapeHtml(s.error) : ""}${s.transactions.length ? ` · ${s.transactions.length} txns` : ""}</div>
+        </div>
+        <div>${statusBadge(s)}</div>
+        <div class="stmt-actions">
+          ${s.status === "needs_mapping" ? `<button class="btn btn-sm btn-primary" data-action="map" data-id="${s.id}">Map format</button>` : ""}
+          ${s.status === "mapped" ? `<button class="btn btn-sm btn-ghost" data-action="remap" data-id="${s.id}">Re-map</button>` : ""}
+          ${s.status === "error" ? `<button class="btn btn-sm btn-ghost" data-action="retry" data-id="${s.id}">Retry</button>` : ""}
+        </div>
+        <div class="stmt-actions">
+          <button class="btn btn-sm btn-ghost btn-danger" data-action="remove" data-id="${s.id}">Remove</button>
+        </div>
+      </div>
+    `).join("");
+
+    host.querySelectorAll("[data-action='map'], [data-action='remap']").forEach(btn => {
+      btn.addEventListener("click", () => { state.currentMappingId = btn.dataset.id; showView("mapping"); });
+    });
+    host.querySelectorAll("[data-action='retry']").forEach(btn => {
+      btn.addEventListener("click", () => { const s = state.statements.find(x => x.id === btn.dataset.id); s.status = "pending"; s.error = null; renderStatementList(); processStatement(s.id); });
+    });
+    host.querySelectorAll("[data-action='remove']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.statements = state.statements.filter(s => s.id !== btn.dataset.id);
+        rebuildAccounts();
+        renderStatementList();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- mapping
+
+  function renderMappingView() {
+    const host = document.getElementById("mappingHost");
+    let stmt = state.statements.find(s => s.id === state.currentMappingId);
+    if (!stmt || stmt.status === "pending") {
+      const candidates = state.statements.filter(s => s.status === "needs_mapping");
+      if (!candidates.length) {
+        host.innerHTML = `<div class="empty-note">No statements are waiting on a format mapping right now. Add a statement, or use "Re-map" on one from the Statements screen.</div>`;
+        return;
+      }
+      host.innerHTML = `<div class="empty-note">Select a statement to map:</div>`;
+      const list = document.createElement("div");
+      list.className = "statement-list";
+      list.innerHTML = candidates.map(c => `<div class="stmt-row"><div class="stmt-main"><div class="stmt-name">${Utils.escapeHtml(c.name)}</div></div><div></div><div class="stmt-actions"><button class="btn btn-sm btn-primary" data-id="${c.id}">Map this statement</button></div><div></div></div>`).join("");
+      host.appendChild(list);
+      list.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { state.currentMappingId = b.dataset.id; renderMappingView(); }));
+      return;
+    }
+
+    UiMapping.render(
+      host,
+      stmt,
+      (mapping, bankName, accountLabel, formatLabel) => { confirmMapping(stmt.id, mapping, bankName, accountLabel, formatLabel); },
+      (mapping) => {
+        const parsed = Parser.applyMapping(stmt.table, mapping);
+        const validation = Parser.validateRunningBalance(parsed.transactions);
+        return { parsedCount: parsed.transactions.length, skipped: parsed.skipped, validation };
+      }
+    );
+  }
+
+  function confirmMapping(id, mapping, bankName, accountLabel, formatLabel) {
+    const stmt = state.statements.find(s => s.id === id);
+    if (!stmt) return;
+    const parsed = Parser.applyMapping(stmt.table, mapping);
+    const validation = Parser.validateRunningBalance(parsed.transactions);
+
+    if (parsed.transactions.length === 0) {
+      Utils.toast("This mapping produced zero valid transactions — please check the column selections.", "error");
+      return;
+    }
+
+    FormatStore.save({
+      fp: stmt.fp, signature: stmt.signature, bankName, label: formatLabel || bankName,
+      columns: stmt.table.columns, mapping,
+    });
+
+    stmt.mapping = mapping;
+    stmt.bankName = bankName;
+    stmt.accountLabel = accountLabel;
+    stmt.transactions = Parser.chronological(parsed.transactions, validation.order);
+    stmt.validation = validation;
+    stmt.skipped = parsed.skipped;
+    stmt.status = "mapped";
+    stmt.matchedFormat = FormatStore.get(stmt.fp);
+
+    const pct = Math.round(validation.matchRate * 100);
+    if (pct < 75) {
+      Utils.toast(`Saved, but only ${pct}% of running-balance checks match — double-check this statement's figures before relying on them.`, "error");
+    } else {
+      Utils.toast(`Mapping saved. ${stmt.transactions.length} transactions verified at ${pct}%.`);
+    }
+
+    rebuildAccounts();
+    renderStatementList();
+    state.selectedAccount = accountLabel;
+    showView("dashboard");
+  }
+
+  // ---------------------------------------------------------------- accounts
+
+  function rebuildAccounts() {
+    const accounts = new Map();
+    state.statements.filter(s => s.status === "mapped").forEach(s => {
+      const key = s.accountLabel || s.bankName || s.name;
+      if (!accounts.has(key)) accounts.set(key, { bankName: s.bankName, transactions: [], statements: [], largeThreshold: state.accounts.get(key)?.largeThreshold });
+      const acc = accounts.get(key);
+      acc.transactions.push(...s.transactions);
+      acc.statements.push(s);
+    });
+    accounts.forEach(acc => acc.transactions.sort((a, b) => a.date - b.date));
+    state.accounts = accounts;
+    if (!state.selectedAccount || !accounts.has(state.selectedAccount)) {
+      state.selectedAccount = accounts.size ? [...accounts.keys()][0] : null;
+    }
+    if (state.currentView === "dashboard") renderDashboardView();
+  }
+
+  function setLargeThresholdAndRerender(v) {
+    const acc = state.accounts.get(state.selectedAccount);
+    if (!acc) return;
+    acc.largeThreshold = v;
+    renderDashboardView();
+  }
+
+  function renderDashboardView() {
+    const select = document.getElementById("accountSelect");
+    const host = document.getElementById("dashboardHost");
+    const downloadBtn = document.getElementById("downloadReportBtn");
+
+    if (!state.accounts.size) {
+      select.innerHTML = "";
+      downloadBtn.disabled = true;
+      host.innerHTML = `<div class="empty-note">No verified statements yet. Add a statement and confirm its format mapping to see analysis here.</div>`;
+      return;
+    }
+
+    select.innerHTML = [...state.accounts.keys()].map(k => `<option value="${Utils.escapeHtml(k)}" ${k === state.selectedAccount ? "selected" : ""}>${Utils.escapeHtml(k)}</option>`).join("");
+    select.onchange = () => { state.selectedAccount = select.value; renderDashboardView(); };
+    downloadBtn.disabled = false;
+    downloadBtn.onclick = () => {
+      const acc = state.accounts.get(state.selectedAccount);
+      const analysis = Analyzer.analyze(acc.transactions, { largeThreshold: acc.largeThreshold });
+      Report.downloadReport(state.selectedAccount, acc.bankName, analysis);
+    };
+
+    const acc = state.accounts.get(state.selectedAccount);
+    const analysis = acc ? Analyzer.analyze(acc.transactions, { largeThreshold: acc.largeThreshold }) : null;
+    UiDashboard.render(host, state.selectedAccount, acc?.bankName, analysis, acc?.statements || []);
+  }
+
+  // ---------------------------------------------------------------- init
+
+  function init() {
+    initNav();
+    initUpload();
+    showView("upload");
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+
+  return { showView, setLargeThresholdAndRerender };
+})();
+
+
+</script>
+</body>
+</html>
